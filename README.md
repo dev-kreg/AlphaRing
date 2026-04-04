@@ -56,6 +56,8 @@ For Running on Steam Deck/Linux, add the following command in the Steam Game Lau
 WINEDLLOVERRIDES="WTSAPI32=n,b" %command%
 ```
 
+Tested with GE-Proton 10-34
+
 ### Logging
 Logging is disabled by default. To enable it, set the `ALPHARING_LOG` environment variable to `1`. Logs are written to `AlphaRing.log` next to the DLL.
 
@@ -75,6 +77,11 @@ Toggle menu: `F4` or `Controller Back` + `Controller Start`
 To navigate using Controller use the `Right Stick` to move the mouse and `RB` to click.
 
 When the menu is open, game input is disabled.
+
+#### Linux/Steam Deck Notes
+On Linux (Proton), start each mission **without** enabling splitscreen or adding extra players first. Once you are loaded into the mission, open the menu and enable splitscreen/add players on the fly.
+
+> **Note:** This workaround does not apply to Halo 1 (CE), which does not support adding players mid-mission.
 
 ### Bugs Report
 Submit it in the [Issues](https://github.com/WinterSquire/AlphaRing/issues) page.

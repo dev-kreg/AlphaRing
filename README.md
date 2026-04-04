@@ -93,6 +93,19 @@ Works with **any Proton version** (Proton 9.0, Proton Experimental, Proton GE, e
 
 > **Note:** Tested on Batocera Linux with the unofficial Batocera add-ons Steam client.
 
+### Logging
+Logging is disabled by default. To enable it, set the `ALPHARING_LOG` environment variable to `1`. Logs are written to `AlphaRing.log` next to the DLL.
+
+**Windows** (Command Prompt, before launching the game):
+```
+set ALPHARING_LOG=1
+```
+
+**Linux/Steam Deck** (Steam Game Launch Options):
+```
+WINEDLLOVERRIDES="WTSAPI32=n,b" ALPHARING_LOG=1 %command%
+```
+
 ### Usage
 Toggle menu: `F4` or `Controller Back` + `Controller Start`
 

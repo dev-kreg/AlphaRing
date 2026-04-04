@@ -4,6 +4,17 @@ namespace AlphaRing::Log {
     static FILE* g_logFile = nullptr;
     static CRITICAL_SECTION g_logCS;
     static bool g_csInit = false;
+    static bool g_enabled = false;
+
+    static bool IsEnabled() {
+        static int cached = -1;
+        if (cached == -1) {
+            char buf[16] = {};
+            DWORD len = GetEnvironmentVariableA("ALPHARING_LOG", buf, sizeof(buf));
+            cached = (len > 0 && buf[0] != '0') ? 1 : 0;
+        }
+        return cached == 1;
+    }
 
     // Returns path to "AlphaRing.log" next to the DLL
     static const char* GetLogPath() {
@@ -36,6 +47,8 @@ namespace AlphaRing::Log {
     }
 
     void Early(const char* fmt, ...) {
+        if (!IsEnabled()) return;
+
         FILE* f = fopen(GetLogPath(), "a");
         if (!f) return;
 
@@ -51,22 +64,55 @@ namespace AlphaRing::Log {
     }
 
     void Write(const char* level, const char* msg) {
-        // Use open/write/close like Early() to avoid any locking issues
-        FILE* f = fopen(GetLogPath(), "a");
-        if (!f) return;
+        if (!IsEnabled()) return;
 
-        WriteTimestamp(f);
-        fprintf(f, "[%s] %s\n", level, msg);
-        fclose(f);
+        if (!g_csInit) {
+            // Fallback before Init()
+            Early("[%s] %s", level, msg);
+            return;
+        }
+
+        EnterCriticalSection(&g_logCS);
+        if (g_logFile) {
+            WriteTimestamp(g_logFile);
+            fprintf(g_logFile, "[%s] %s\n", level, msg);
+            fflush(g_logFile);
+        }
+        LeaveCriticalSection(&g_logCS);
     }
 
     bool Init() {
+        g_enabled = IsEnabled();
+        if (!g_enabled) return true;
+
         Early("=== AlphaRing Log Start ===");
+
+        InitializeCriticalSection(&g_logCS);
+        g_csInit = true;
+
+        g_logFile = fopen(GetLogPath(), "a");
+        if (!g_logFile) {
+            Early("ERROR: failed to open persistent log file");
+            return false;
+        }
+
         return true;
     }
 
     bool Shutdown() {
-        Early("Shutting down logger.");
+        Write("INFO", "Shutting down logger.");
+
+        if (g_csInit) {
+            EnterCriticalSection(&g_logCS);
+            if (g_logFile) {
+                fclose(g_logFile);
+                g_logFile = nullptr;
+            }
+            LeaveCriticalSection(&g_logCS);
+            DeleteCriticalSection(&g_logCS);
+            g_csInit = false;
+        }
+
         return true;
     }
 }

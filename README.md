@@ -56,6 +56,19 @@ For Running on Steam Deck/Linux, add the following command in the Steam Game Lau
 WINEDLLOVERRIDES="WTSAPI32=n,b" %command%
 ```
 
+### Logging
+Logging is disabled by default. To enable it, set the `ALPHARING_LOG` environment variable to `1`. Logs are written to `AlphaRing.log` next to the DLL.
+
+**Windows** (Command Prompt, before launching the game):
+```
+set ALPHARING_LOG=1
+```
+
+**Linux/Steam Deck** (Steam Game Launch Options):
+```
+WINEDLLOVERRIDES="WTSAPI32=n,b" ALPHARING_LOG=1 %command%
+```
+
 ### Usage
 Toggle menu: `F4` or `Controller Back` + `Controller Start`
 

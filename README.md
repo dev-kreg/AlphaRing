@@ -16,6 +16,34 @@ A Modding Tool for MCC
 * Camera Tool (H3)
 * Object Browser (H3)
 
+### Building from Source
+
+#### Windows (MSVC)
+Requires CMake 3.27+, Ninja, and MSVC (x64). Visual Studio or the CMakeSettings.json configs work out of the box:
+```
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+```
+
+#### Linux / Dev Container (cross-compilation)
+A devcontainer is provided in `.devcontainer/` for cross-compiling the Windows x64 DLL from Linux using Clang 19 + lld-link + xwin (Windows SDK/CRT).
+
+**VS Code**: Open the repo and select "Reopen in Container" when prompted.
+
+**CLI (Docker)**:
+```bash
+docker build -t alpharing-dev .devcontainer/
+docker run --rm -v "$(pwd)":/workspace -w /workspace alpharing-dev bash -c '
+  sh .devcontainer/fix-case.sh
+  cmake -B build -G Ninja \
+    -DCMAKE_TOOLCHAIN_FILE=.devcontainer/toolchain-cross-win64.cmake \
+    -DCMAKE_BUILD_TYPE=Release
+  cmake --build build
+'
+```
+
+Output: `build/WTSAPI32.dll` (PE32+ x86-64).
+
 ### Installation
 Make sure you have the latest [Microsoft Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) installed.
 

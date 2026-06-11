@@ -5,7 +5,7 @@
 
 #include "global/Global.h"
 #include "input/MenuConfig.h"
-#include "render/imgui/game/xbox/CXboxContext.h"
+#include "render/imgui/game/lobby/CLobby.h"
 
 #include "imgui.h"
 
@@ -18,16 +18,15 @@ namespace AlphaRing::Render::Window {
 
     //todo: WM_IME_COMPOSITION Support
     static LRESULT dWndProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-        bool xboxOpen = g_pXboxContext && g_pXboxContext->isOpen();
+        bool lobbyOpen = AlphaRing::Lobby::IsOpen();
 
-        // Intercept keyboard/mouse before ImGui and the game while the Xbox
-        // menu is open. The trigger key toggles the menu; everything else is
-        // consumed here. Keyboard navigation is handled by GetAsyncKeyState
-        // polling in Input::Update(), so no handleInput calls are needed here.
-        if (xboxOpen) {
+        // Intercept keyboard/mouse before ImGui and the game while the
+        // lobby is open. The trigger key cancels it; everything else is
+        // consumed here (lobby keyboard entry polls GetAsyncKeyState).
+        if (lobbyOpen) {
             if (uMsg == WM_KEYDOWN) {
                 if (static_cast<int>(wParam) == g_menuConfig.keyboardVKey) {
-                    g_pXboxContext->close();
+                    AlphaRing::Lobby::Cancel();
                 }
                 return 0; // consume all keyboard input
             }
@@ -51,10 +50,10 @@ namespace AlphaRing::Render::Window {
         if (ImGui_ImplWin32_WndProcHandler(hWnd, uMsg, wParam, lParam))
             return true;
 
-        // Keyboard trigger to open the menu (only reached when menu is closed)
+        // Keyboard trigger to open the lobby (only reached when closed)
         if (uMsg == WM_KEYDOWN) {
             if (static_cast<int>(wParam) == g_menuConfig.keyboardVKey) {
-                if (g_pXboxContext) g_pXboxContext->open();
+                AlphaRing::Lobby::Open();
                 return 0;
             }
         }

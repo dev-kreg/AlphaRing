@@ -4,6 +4,7 @@
 #include "mcc/mcc.h"
 #include "render/imgui/game/xbox/CXboxMenuState.h"
 #include "render/imgui/game/xbox/CXboxColorMapping.h"
+#include "render/imgui/game/lobby/CLobby.h"
 
 #include <cstdio>
 #include <guiddef.h>
@@ -146,7 +147,8 @@ static void apply_menu_state_from_bin() {
     MenuState ms{};
     ms.playerCount = 1;
     ms.useKM = false;
-    for (int i = 0; i < 4; ++i) { ms.controllerIndex[i] = i; ms.teamIndex[i] = i % 2; }
+    // everyone starts on the same team unless the lobby chose otherwise
+    for (int i = 0; i < 4; ++i) { ms.controllerIndex[i] = i; ms.teamIndex[i] = 0; }
     loadMenuStateBin(ms, k_menuStateBinPath);
 
     for (int i = 0; i < 4; ++i) {
@@ -199,6 +201,8 @@ static void apply_menu_state_from_bin() {
     }
     if (engine)
         engine->load_setting();
+
+    AlphaRing::Lobby::RestoreLastSession();
 }
 
 void *CGameManager::game_restart(CGameManager *self, int type, const char *reason) {

@@ -5,6 +5,7 @@
 #include "./mcc.h"
 #include "global/Global.h"
 #include "input/Input.h"
+#include "render/imgui/game/lobby/CLobby.h"
 
 void CGameManager::set_vibration(CGameManager *self, DWORD dwUserIndex, XINPUT_VIBRATION *pVibration) {
     CInputDevice* p_device;
@@ -28,8 +29,15 @@ bool CGameManager::get_xbox_user_id(CGameManager *self, __int64 *pId, wchar_t *p
     auto p_setting = AlphaRing::Global::MCC::Splitscreen();
     auto p_profile = get_profile(index);
 
-    if (!p_setting->b_override || !index)
-        return ppOriginal.get_xbox_user_id(self, pId, pName, size, index);
+    if (!p_setting->b_override || !index) {
+        bool ok = ppOriginal.get_xbox_user_id(self, pId, pName, size, index);
+        // the lobby can give player 1 a custom display name; XUID stays real
+        if (ok && !index && pName && size > 1) {
+            if (const wchar_t* n = AlphaRing::Lobby::P1NameOverride())
+                String::wstrcpy(pName, n, size >> 1);
+        }
+        return ok;
+    }
 
     static bool logged = false;
     if (!logged) { LOG_INFO("Splitscreen get_xbox_user_id: index={}, id={:x}", index, p_profile->id); logged = true; }

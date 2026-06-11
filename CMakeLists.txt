@@ -3,9 +3,6 @@ project(alpha_ring)
 
 set(CMAKE_CXX_STANDARD 17)
 
-find_package(SDL2 CONFIG REQUIRED)
-find_package(SDL2_mixer CONFIG REQUIRED)
-
 set(VERSION "1.3528.0.0")
 
 set(WRAPPER_NAME "WTSAPI32")
@@ -73,10 +70,7 @@ file(GLOB_RECURSE CORE_SRC
 
 add_library(${WRAPPER_NAME} SHARED ${CORE_SRC} "lib/game/inc/${VERSION}/offset_groundhog.h" "lib/game/inc/${VERSION}/offset_halo1.h" "lib/game/inc/${VERSION}/offset_halo2.h" "lib/game/inc/${VERSION}/offset_halo3.h" "lib/game/inc/${VERSION}/offset_halo3odst.h" "lib/game/inc/${VERSION}/offset_halo4.h" "lib/game/inc/${VERSION}/offset_haloreach.h" "lib/game/inc/${VERSION}/offset_mcc.h")
 
-target_link_libraries(${WRAPPER_NAME} PUBLIC ${LIBRARY_LIST}
-    SDL2::SDL2-static
-    SDL2_mixer::SDL2_mixer-static
-)
+target_link_libraries(${WRAPPER_NAME} PUBLIC ${LIBRARY_LIST})
 
 if (MSVC)
     target_link_options(${WRAPPER_NAME} PUBLIC /DEBUG)

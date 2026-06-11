@@ -15,6 +15,8 @@ namespace AlphaRing::Global {
         bool wireframe_model;
         bool wireframe_structure;
         bool show_imgui = false;
+        // splitscreen lobby wizard active (blocks game input like the menu)
+        bool lobby_open = false;
         // on menu
         bool show_imgui_mouse = false;
         bool pause_game_on_menu_shown = false;

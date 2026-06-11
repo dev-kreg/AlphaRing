@@ -112,6 +112,8 @@ static int g_bound = 0;         // players fully confirmed
 static double g_countdownEnd = 0.0;
 static int g_cursor = 0;        // generic row cursor for current stage
 static int g_oskX = 0, g_oskY = 0;
+static int g_gridFor = -1;      // color slot being picked in the grid, -1 = closed
+static int g_gridCursor = 0;
 static std::string g_nameBuf;
 static wchar_t g_p1Name[64] = {};
 static bool g_p1HasName = false;
@@ -370,6 +372,8 @@ static void EnterNameStage() {
     g_stage = Stage::Name;
 }
 
+static void ResetConfirmUi() { g_cursor = 0; g_gridFor = -1; }
+
 static void ConfirmPlayer() {
     UpsertRoster(g_setup[g_player]);
     g_bound = g_player + 1;
@@ -575,7 +579,7 @@ static void StageRosterPick() {
             for (int c = 0; c < 3; ++c) g_setup[g_player].colors[c] = e.colors[c];
             g_setup[g_player].team = e.team;
             g_setup[g_player].fromRoster = true;
-            g_cursor = 0;
+            ResetConfirmUi();
             g_stage = Stage::Confirm;
         }
     }
@@ -660,14 +664,72 @@ static void StageName() {
                 g_setup[g_player].team = e.team;
             }
         }
-        g_cursor = 0;
+        ResetConfirmUi();
         g_stage = Stage::Confirm;
     }
+}
+
+static constexpr int kGridCols = 6;
+
+static void StageColorGrid(PlayerSetup& sPlayer) {
+    auto* dl = ImGui::GetForegroundDrawList();
+    ImFont* font = ImGui::GetFont();
+    ImVec2 sz = ScreenSize();
+
+    const int nc = CXboxColorMapping::kColorCount;
+    const int rows = (nc + kGridCols - 1) / kGridCols;
+
+    float cell = ImGui::GetFontSize() * 3.2f;
+    float gridW = kGridCols * cell;
+    float gridH = rows * cell;
+    float x0 = (sz.x - gridW) * 0.5f;
+    float y0 = sz.y * 0.36f;
+
+    static const char* slotNames[3] = {"PRIMARY", "SECONDARY", "DETAIL"};
+    char title[64];
+    snprintf(title, sizeof(title), "%s COLOR", slotNames[g_gridFor]);
+    DrawCenteredText(sz.y * 0.26f, 1.6f, kTextMain, title);
+    DrawCenteredText(y0 + gridH + ImGui::GetFontSize() * 1.2f, 1.4f, kAccent, kColorNames[g_gridCursor]);
+
+    for (int i = 0; i < nc; ++i) {
+        int cx = i % kGridCols, cy = i / kGridCols;
+        float x = x0 + cx * cell, y = y0 + cy * cell;
+        float pad = cell * 0.12f;
+        dl->AddRectFilled({x + pad, y + pad}, {x + cell - pad, y + cell - pad}, kColorSwatch[i], 4.0f);
+        dl->AddRect({x + pad, y + pad}, {x + cell - pad, y + cell - pad}, IM_COL32(0, 0, 0, 200), 4.0f);
+        if (i == g_gridCursor)
+            dl->AddRect({x + 2, y + 2}, {x + cell - 2, y + cell - 2}, kAccent, 5.0f, 0, 3.0f);
+        if (i == sPlayer.colors[g_gridFor])
+            dl->AddCircleFilled({x + cell - pad - 7, y + pad + 7}, 4.0f, kAccent);
+    }
+
+    DrawFooter("DPAD = MOVE      A = SELECT      B = CANCEL");
+
+    PadRead r = ReadPad(sPlayer.pad);
+    int cx = g_gridCursor % kGridCols, cy = g_gridCursor / kGridCols;
+    if (r.pressed & XINPUT_GAMEPAD_DPAD_LEFT)  cx = (cx + kGridCols - 1) % kGridCols;
+    if (r.pressed & XINPUT_GAMEPAD_DPAD_RIGHT) cx = (cx + 1) % kGridCols;
+    if (r.pressed & XINPUT_GAMEPAD_DPAD_UP)    cy = (cy + rows - 1) % rows;
+    if (r.pressed & XINPUT_GAMEPAD_DPAD_DOWN)  cy = (cy + 1) % rows;
+    g_gridCursor = cy * kGridCols + cx;
+    if (g_gridCursor >= nc) g_gridCursor = nc - 1;
+
+    if (r.pressed & XINPUT_GAMEPAD_A) {
+        sPlayer.colors[g_gridFor] = g_gridCursor;
+        g_gridFor = -1;
+    }
+    if (r.pressed & XINPUT_GAMEPAD_B)
+        g_gridFor = -1;
 }
 
 static void StageConfirm() {
     PlayerSetup& s = g_setup[g_player];
     DrawHeader(s.name.c_str());
+
+    if (g_gridFor >= 0) {
+        StageColorGrid(s);
+        return;
+    }
 
     DrawSwatchRow(0, g_cursor == 0, "PRIMARY", kColorSwatch[s.colors[0]], kColorNames[s.colors[0]]);
     DrawSwatchRow(1, g_cursor == 1, "SECONDARY", kColorSwatch[s.colors[1]], kColorNames[s.colors[1]]);
@@ -675,7 +737,7 @@ static void StageConfirm() {
     DrawSwatchRow(3, g_cursor == 3, "TEAM", kTeamSwatch[s.team], kTeamNames[s.team]);
     DrawRow(5, g_cursor == 4, g_cursor == 4 ? kAccent : kTextDim, "READY");
 
-    DrawFooter("DPAD = MOVE / CHANGE      A = READY      B = BACK");
+    DrawFooter("DPAD = MOVE / CHANGE      A = OPEN COLOR GRID / READY      B = BACK");
 
     PadRead r = ReadPad(s.pad);
     if ((r.pressed & XINPUT_GAMEPAD_DPAD_UP) && g_cursor > 0) g_cursor--;
@@ -692,9 +754,15 @@ static void StageConfirm() {
             s.team = (s.team + dir + 8) % 8;
     }
 
-    if ((r.pressed & XINPUT_GAMEPAD_A) && g_cursor == 4) {
-        ConfirmPlayer();
-        return;
+    if (r.pressed & XINPUT_GAMEPAD_A) {
+        if (g_cursor == 4) {
+            ConfirmPlayer();
+            return;
+        }
+        if (g_cursor < 3) {
+            g_gridFor = g_cursor;
+            g_gridCursor = s.colors[g_cursor];
+        }
     }
     if (r.pressed & XINPUT_GAMEPAD_START) {
         ConfirmPlayer();

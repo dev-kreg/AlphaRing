@@ -118,6 +118,8 @@ static std::string g_nameBuf;
 static wchar_t g_p1Name[64] = {};
 static bool g_p1HasName = false;
 static MenuState g_savedState{};
+static bool g_editMode = false;
+static std::string g_editSourceName;  // roster entry being renamed, empty = not editing
 static bool g_haveSavedSession = false;
 
 // edge detection per pad + keyboard
@@ -378,6 +380,8 @@ static void FinishLobby() {
 
 static void EnterSourceStage() {
     g_cursor = g_roster.empty() ? 1 : 0;
+    g_editMode = false;
+    g_editSourceName.clear();
     g_stage = Stage::Source;
 }
 
@@ -390,6 +394,12 @@ static void EnterNameStage() {
 static void ResetConfirmUi() { g_cursor = 0; g_gridFor = -1; }
 
 static void ConfirmPlayer() {
+    if (!g_editSourceName.empty() && g_editSourceName != g_setup[g_player].name) {
+        for (auto it = g_roster.begin(); it != g_roster.end(); ++it) {
+            if (it->name == g_editSourceName) { g_roster.erase(it); break; }
+        }
+    }
+    g_editSourceName.clear();
     UpsertRoster(g_setup[g_player]);
     g_bound = g_player + 1;
     if (g_bound >= 4) {
@@ -590,22 +600,25 @@ static void StageSource() {
     DrawHeader("CHOOSE PROFILE");
 
     bool hasRoster = !g_roster.empty();
-    DrawRow(0, g_cursor == 0, hasRoster ? (g_cursor == 0 ? kTextMain : kTextDim) : IM_COL32(80, 85, 90, 255), "LOAD PROFILE");
+    ImU32 dis = IM_COL32(80, 85, 90, 255);
+    DrawRow(0, g_cursor == 0, hasRoster ? (g_cursor == 0 ? kTextMain : kTextDim) : dis, "LOAD PROFILE");
     DrawRow(1, g_cursor == 1, g_cursor == 1 ? kTextMain : kTextDim, "NEW PLAYER");
+    DrawRow(2, g_cursor == 2, hasRoster ? (g_cursor == 2 ? kTextMain : kTextDim) : dis, "EDIT PROFILE");
     DrawFooter("DPAD = MOVE      A = SELECT      B = BACK");
     DrawClassicGraphicsWarning();
 
     PadRead r = ReadPad(g_setup[g_player].pad);
-    if (r.pressed & (XINPUT_GAMEPAD_DPAD_UP | XINPUT_GAMEPAD_DPAD_DOWN))
-        g_cursor = g_cursor == 0 ? 1 : 0;
+    if ((r.pressed & XINPUT_GAMEPAD_DPAD_UP) && g_cursor > 0) g_cursor--;
+    if ((r.pressed & XINPUT_GAMEPAD_DPAD_DOWN) && g_cursor < 2) g_cursor++;
     if (!hasRoster) g_cursor = 1;
 
     if (r.pressed & XINPUT_GAMEPAD_A) {
-        if (g_cursor == 0 && hasRoster) {
+        if (g_cursor == 1) {
+            EnterNameStage();
+        } else if (hasRoster) {
+            g_editMode = g_cursor == 2;
             g_cursor = 0;
             g_stage = Stage::RosterPick;
-        } else {
-            EnterNameStage();
         }
     }
     if (r.pressed & XINPUT_GAMEPAD_B) {
@@ -615,7 +628,7 @@ static void StageSource() {
 }
 
 static void StageRosterPick() {
-    DrawHeader("LOAD PROFILE");
+    DrawHeader(g_editMode ? "EDIT PROFILE" : "LOAD PROFILE");
 
     // simple scrolling window of up to 7 visible entries
     int n = (int)g_roster.size();
@@ -647,9 +660,16 @@ static void StageRosterPick() {
             g_setup[g_player].name = e.name;
             for (int c = 0; c < 3; ++c) g_setup[g_player].colors[c] = e.colors[c];
             g_setup[g_player].team = e.team;
-            g_setup[g_player].fromRoster = true;
-            ResetConfirmUi();
-            g_stage = Stage::Confirm;
+            g_setup[g_player].fromRoster = !g_editMode;
+            if (g_editMode) {
+                g_editSourceName = e.name;
+                g_nameBuf = e.name;
+                g_oskX = g_oskY = 0;
+                g_stage = Stage::Name;
+            } else {
+                ResetConfirmUi();
+                g_stage = Stage::Confirm;
+            }
         }
     }
     if (r.pressed & XINPUT_GAMEPAD_B)
@@ -657,7 +677,7 @@ static void StageRosterPick() {
 }
 
 static void StageName() {
-    DrawHeader("ENTER NAME");
+    DrawHeader(g_editSourceName.empty() ? "ENTER NAME" : "EDIT NAME");
 
     auto* dl = ImGui::GetForegroundDrawList();
     ImFont* font = ImGui::GetFont();
@@ -706,7 +726,13 @@ static void StageName() {
     if (r.pressed & XINPUT_GAMEPAD_Y)
         RandomizeName();
     if (r.pressed & XINPUT_GAMEPAD_B) {
-        EnterSourceStage();
+        if (!g_editSourceName.empty()) {
+            g_editSourceName.clear();
+            g_cursor = 0;
+            g_stage = Stage::RosterPick;
+        } else {
+            EnterSourceStage();
+        }
         return;
     }
 
@@ -727,10 +753,13 @@ static void StageName() {
         g_setup[g_player].name = g_nameBuf;
         g_setup[g_player].fromRoster = false;
         // returning players keep their saved colors as a starting point
-        for (auto& e : g_roster) {
-            if (e.name == g_nameBuf) {
-                for (int c = 0; c < 3; ++c) g_setup[g_player].colors[c] = e.colors[c];
-                g_setup[g_player].team = e.team;
+        // (when editing, the picked entry's colors are already loaded)
+        if (g_editSourceName.empty()) {
+            for (auto& e : g_roster) {
+                if (e.name == g_nameBuf) {
+                    for (int c = 0; c < 3; ++c) g_setup[g_player].colors[c] = e.colors[c];
+                    g_setup[g_player].team = e.team;
+                }
             }
         }
         ResetConfirmUi();

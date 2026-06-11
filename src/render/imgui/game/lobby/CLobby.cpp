@@ -112,6 +112,7 @@ static int g_bound = 0;         // players fully confirmed
 static double g_countdownEnd = 0.0;
 static int g_cursor = 0;        // generic row cursor for current stage
 static int g_oskX = 0, g_oskY = 0;
+static bool g_oskCaps = true;
 static int g_gridFor = -1;      // color slot being picked in the grid, -1 = closed
 static int g_gridCursor = 0;
 static std::string g_nameBuf;
@@ -124,6 +125,7 @@ static bool g_haveSavedSession = false;
 
 // edge detection per pad + keyboard
 static WORD g_prevButtons[4] = {};
+static bool g_prevLT[4] = {};
 static bool g_prevKey[256] = {};
 
 // ---------------------------------------------------------------- helpers
@@ -140,6 +142,7 @@ struct PadRead {
     WORD held = 0;
     WORD pressed = 0;   // rising edge
     bool anyPress = false;
+    bool ltPressed = false;  // left trigger rising edge
 };
 
 static PadRead ReadPad(int i) {
@@ -153,8 +156,10 @@ static PadRead ReadPad(int i) {
     r.held = st.Gamepad.wButtons;
     r.pressed = r.held & ~g_prevButtons[i];
     g_prevButtons[i] = r.held;
-    r.anyPress = r.pressed != 0 ||
-                 st.Gamepad.bLeftTrigger > 30 || st.Gamepad.bRightTrigger > 30;
+    bool lt = st.Gamepad.bLeftTrigger > 30;
+    r.ltPressed = lt && !g_prevLT[i];
+    g_prevLT[i] = lt;
+    r.anyPress = r.pressed != 0 || lt || st.Gamepad.bRightTrigger > 30;
     return r;
 }
 
@@ -388,6 +393,7 @@ static void EnterSourceStage() {
 static void EnterNameStage() {
     g_nameBuf.clear();
     g_oskX = g_oskY = 0;
+    g_oskCaps = true;
     g_stage = Stage::Name;
 }
 
@@ -701,13 +707,19 @@ static void StageName() {
         bool sel = cx == g_oskX && cy == g_oskY;
         if (sel)
             dl->AddRectFilled({x, y}, {x + cell - 4, y + cell - 4}, kRowSel, 4.0f);
-        char ch[4] = {kOskChars[i] == ' ' ? '_' : kOskChars[i], 0};
+        char c = kOskChars[i];
+        if (c == ' ') c = '_';
+        else if (!g_oskCaps && c >= 'A' && c <= 'Z') c += 'a' - 'A';
+        char ch[4] = {c, 0};
         ImVec2 ts = font->CalcTextSizeA(fs, FLT_MAX, 0.0f, ch);
         dl->AddText(font, fs, {x + (cell - 4 - ts.x) * 0.5f, y + (cell - 4 - ts.y) * 0.5f},
                     sel ? kTextMain : kTextDim, ch);
     }
 
-    DrawFooter("A = TYPE   X = DELETE   Y = RANDOM NAME   START = DONE   B = BACK   (KEYBOARD WORKS TOO)");
+    dl->AddText(font, fs * 0.8f, {x0 + gridW + 16.0f, y0},
+                g_oskCaps ? kAccent : kTextDim, g_oskCaps ? "CAPS" : "caps");
+
+    DrawFooter("A = TYPE   X = DELETE   Y = RANDOM   LT = CAPS   START = DONE   B = BACK   (KEYBOARD WORKS TOO)");
 
     PadRead r = ReadPad(g_setup[g_player].pad);
 
@@ -716,10 +728,16 @@ static void StageName() {
     if (r.pressed & XINPUT_GAMEPAD_DPAD_UP) g_oskY = (g_oskY + kOskRows - 1) % kOskRows;
     if (r.pressed & XINPUT_GAMEPAD_DPAD_DOWN) g_oskY = (g_oskY + 1) % kOskRows;
 
+    if (r.ltPressed)
+        g_oskCaps = !g_oskCaps;
+
     if (r.pressed & XINPUT_GAMEPAD_A) {
         int idx = g_oskY * kOskCols + g_oskX;
-        if (idx < kOskCount && (int)g_nameBuf.size() < kNameMax)
-            g_nameBuf += kOskChars[idx];
+        if (idx < kOskCount && (int)g_nameBuf.size() < kNameMax) {
+            char c = kOskChars[idx];
+            if (!g_oskCaps && c >= 'A' && c <= 'Z') c += 'a' - 'A';
+            g_nameBuf += c;
+        }
     }
     if ((r.pressed & XINPUT_GAMEPAD_X) && !g_nameBuf.empty())
         g_nameBuf.pop_back();
@@ -737,8 +755,10 @@ static void StageName() {
     }
 
     // physical keyboard input
+    bool shift = (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0;
     for (int vk = 'A'; vk <= 'Z'; ++vk)
-        if (KeyPressed(vk) && (int)g_nameBuf.size() < kNameMax) g_nameBuf += (char)vk;
+        if (KeyPressed(vk) && (int)g_nameBuf.size() < kNameMax)
+            g_nameBuf += shift ? (char)vk : (char)(vk + 'a' - 'A');
     for (int vk = '0'; vk <= '9'; ++vk)
         if (KeyPressed(vk) && (int)g_nameBuf.size() < kNameMax) g_nameBuf += (char)vk;
     if (KeyPressed(VK_SPACE) && (int)g_nameBuf.size() < kNameMax) g_nameBuf += ' ';

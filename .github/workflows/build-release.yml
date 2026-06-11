@@ -1,0 +1,79 @@
+name: Build & Release
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  XWIN_VERSION: "0.6.5"
+
+jobs:
+  build-release:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install LLVM toolchain
+        run: |
+          curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | sudo tee /etc/apt/trusted.gpg.d/llvm.asc > /dev/null
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-19 main" | sudo tee /etc/apt/sources.list.d/llvm-19.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build clang-19 lld-19 llvm-19
+          sudo ln -sf /usr/bin/clang-19 /usr/local/bin/clang-cl
+          for tool in clang clang++ lld-link llvm-lib llvm-rc llvm-mt llvm-ar; do
+            sudo ln -sf "/usr/bin/${tool}-19" "/usr/local/bin/${tool}"
+          done
+
+      - name: Cache Windows SDK
+        id: xwin-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/xwin
+          key: xwin-${{ env.XWIN_VERSION }}-x86_64-v1
+
+      - name: Download Windows SDK (xwin)
+        if: steps.xwin-cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL "https://github.com/Jake-Shadle/xwin/releases/download/${XWIN_VERSION}/xwin-${XWIN_VERSION}-x86_64-unknown-linux-musl.tar.gz" \
+            | tar xz --strip-components=1 -C /tmp "xwin-${XWIN_VERSION}-x86_64-unknown-linux-musl/xwin"
+          /tmp/xwin --accept-license --arch x86_64 --cache-dir "$HOME/xwin-dl-cache" splat --output "$HOME/xwin"
+
+      - name: Create case-sensitivity symlinks
+        run: |
+          # Windows SDK references libs/headers with varying casing; Linux is case-sensitive.
+          find "$HOME/xwin" -name '*.lib' | while read -r lib; do
+            dir=$(dirname "$lib"); base=$(basename "$lib")
+            lower=$(echo "$base" | tr '[:upper:]' '[:lower:]')
+            title=$(echo "$lower" | sed 's/^\(.\)/\U\1/')
+            [ -e "$dir/$lower" ] || ln -sf "$base" "$dir/$lower"
+            [ -e "$dir/$title" ] || ln -sf "$base" "$dir/$title"
+          done
+          [ -e "$HOME/xwin/sdk/include/ucrt/String.h" ] || ln -sf string.h "$HOME/xwin/sdk/include/ucrt/String.h"
+          sh .devcontainer/fix-case.sh
+
+      - name: Build
+        run: |
+          XWIN_DIR="$HOME/xwin" cmake -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE=.devcontainer/toolchain-cross-win64.cmake \
+            -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          file build/WTSAPI32.dll
+          sha256sum build/WTSAPI32.dll | tee build/WTSAPI32.dll.sha256
+
+      - name: Read game version
+        id: ver
+        run: echo "version=$(sed -n 's/^set(VERSION "\(.*\)")/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}-r${{ github.run_number }}
+          name: AlphaRing ${{ steps.ver.outputs.version }} build ${{ github.run_number }}
+          generate_release_notes: true
+          files: |
+            build/WTSAPI32.dll
+            build/WTSAPI32.dll.sha256

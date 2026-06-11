@@ -18,6 +18,8 @@ bool saveMenuStateBin(const MenuState& state, const std::string& path) {
     ofs.write(reinterpret_cast<const char*>(state.controllerIndex), sizeof(state.controllerIndex));
     ofs.write(reinterpret_cast<const char*>(state.teamIndex), sizeof(state.teamIndex));
     ofs.write(reinterpret_cast<const char*>(state.playerColors), sizeof(state.playerColors));
+    uint8_t enabled = state.enabled ? 1 : 0;
+    ofs.write(reinterpret_cast<const char*>(&enabled), sizeof(enabled));
 
     return ofs.good();
 }
@@ -34,6 +36,11 @@ bool loadMenuStateBin(MenuState& state, const std::string& path) {
     ifs.read(reinterpret_cast<char*>(state.controllerIndex), sizeof(state.controllerIndex));
     ifs.read(reinterpret_cast<char*>(state.teamIndex), sizeof(state.teamIndex));
     ifs.read(reinterpret_cast<char*>(state.playerColors), sizeof(state.playerColors));
+    if (!ifs.good()) return false;
 
-    return ifs.good();
+    uint8_t enabled = 1;
+    ifs.read(reinterpret_cast<char*>(&enabled), sizeof(enabled));
+    state.enabled = ifs.good() ? enabled != 0 : true;
+
+    return true;
 }

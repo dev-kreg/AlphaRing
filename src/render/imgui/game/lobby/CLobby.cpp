@@ -94,7 +94,7 @@ struct RosterEntry {
     int team = 0;
 };
 
-enum class Stage { Hidden, Countdown, Bind, Source, RosterPick, Name, Confirm };
+enum class Stage { Hidden, QuickMenu, Countdown, Bind, Source, RosterPick, Name, Confirm };
 
 struct PlayerSetup {
     int pad = -1;
@@ -117,6 +117,8 @@ static int g_gridCursor = 0;
 static std::string g_nameBuf;
 static wchar_t g_p1Name[64] = {};
 static bool g_p1HasName = false;
+static MenuState g_savedState{};
+static bool g_haveSavedSession = false;
 
 // edge detection per pad + keyboard
 static WORD g_prevButtons[4] = {};
@@ -266,6 +268,7 @@ static void ApplySession(int count) {
     int game = gg ? (int)gg->current_game : (int)CGameGlobal::Halo3;
 
     MenuState ms{};
+    ms.enabled = true;
     ms.playerCount = count;
     ms.useKM = false;
     for (int i = 0; i < 4; ++i) {
@@ -339,15 +342,27 @@ void RestoreLastSession() {
     }
 }
 
-void Open() {
-    LoadRoster();
+static void StartNewSetup() {
     for (auto& s : g_setup) s = PlayerSetup{};
     g_player = 0;
     g_bound = 0;
     g_cursor = 0;
     g_stage = Stage::Countdown;
     g_countdownEnd = NowSeconds() + 3.0;
+}
+
+void Open() {
+    LoadRoster();
+    g_savedState = MenuState{};
+    g_haveSavedSession = loadMenuStateBin(g_savedState, kStatePath) && g_savedState.playerCount > 1;
     AlphaRing::Global::Global()->lobby_open = true;
+    if (g_haveSavedSession) {
+        g_cursor = g_savedState.enabled ? 1 : 0;
+        for (int i = 0; i < 4; ++i) ReadPad(i);
+        g_stage = Stage::QuickMenu;
+    } else {
+        StartNewSetup();
+    }
 }
 
 void Cancel() {
@@ -462,6 +477,49 @@ static void DrawSwatchRow(int row, bool selected, const char* label, ImU32 swatc
 }
 
 // ---------------------------------------------------------------- stages
+
+static void StageQuickMenu() {
+    DrawHeader("SPLITSCREEN");
+
+    char resume[96];
+    snprintf(resume, sizeof(resume), "SPLITSCREEN ON  (LAST SETUP: %d PLAYERS)", g_savedState.playerCount);
+    bool on = g_savedState.enabled;
+
+    DrawRow(0, g_cursor == 0, g_cursor == 0 ? kTextMain : kTextDim, resume);
+    DrawRow(1, g_cursor == 1, g_cursor == 1 ? kTextMain : kTextDim, "SINGLE PLAYER");
+    DrawRow(2, g_cursor == 2, g_cursor == 2 ? kTextMain : kTextDim, "NEW LOBBY SETUP");
+    DrawCenteredText(RowY(4), 1.0f, kAccent, on ? "CURRENT: SPLITSCREEN ON" : "CURRENT: SINGLE PLAYER");
+
+    DrawFooter("DPAD = MOVE      A = SELECT      B = CLOSE");
+
+    // aggregate input from every connected pad: nothing is bound yet
+    WORD pressed = 0;
+    for (int i = 0; i < 4; ++i)
+        pressed |= ReadPad(i).pressed;
+
+    if ((pressed & XINPUT_GAMEPAD_DPAD_UP) && g_cursor > 0) g_cursor--;
+    if ((pressed & XINPUT_GAMEPAD_DPAD_DOWN) && g_cursor < 2) g_cursor++;
+
+    if (pressed & XINPUT_GAMEPAD_A) {
+        if (g_cursor == 0) {
+            g_savedState.enabled = true;
+            saveMenuStateBin(g_savedState, kStatePath);
+            CGameManager::reapply_menu_state();
+            RestoreLastSession();
+            Cancel();
+        } else if (g_cursor == 1) {
+            g_savedState.enabled = false;
+            saveMenuStateBin(g_savedState, kStatePath);
+            CGameManager::reapply_menu_state();
+            Cancel();
+        } else {
+            StartNewSetup();
+        }
+        return;
+    }
+    if ((pressed & XINPUT_GAMEPAD_B) || KeyPressed(VK_ESCAPE))
+        Cancel();
+}
 
 static void StageCountdown() {
     double left = g_countdownEnd - NowSeconds();
@@ -787,6 +845,7 @@ void Render() {
     DrawDim();
 
     switch (g_stage) {
+        case Stage::QuickMenu: StageQuickMenu(); break;
         case Stage::Countdown: StageCountdown(); break;
         case Stage::Bind: StageBind(); break;
         case Stage::Source: StageSource(); break;

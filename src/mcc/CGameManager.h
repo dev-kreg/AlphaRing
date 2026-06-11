@@ -35,6 +35,7 @@
         static Profile_t* get_profile(int index);
         static CInputDevice* get_controller(int index);
         static void apply_profiles();
+        static void reapply_menu_state();
 
     private:
         static void __fastcall set_vibration(CGameManager* self, DWORD dwUserIndex, XINPUT_VIBRATION *pVibration);

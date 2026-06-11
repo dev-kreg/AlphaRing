@@ -151,6 +151,11 @@ static void apply_menu_state_from_bin() {
     for (int i = 0; i < 4; ++i) { ms.controllerIndex[i] = i; ms.teamIndex[i] = 0; }
     loadMenuStateBin(ms, k_menuStateBinPath);
 
+    // splitscreen toggled off in the lobby: keep the setup on disk but
+    // run as a normal single-player session
+    if (!ms.enabled)
+        ms.playerCount = 1;
+
     for (int i = 0; i < 4; ++i) {
         auto profile = CGameManager::get_profile(i);
         if (profile)
@@ -203,6 +208,11 @@ static void apply_menu_state_from_bin() {
         engine->load_setting();
 
     AlphaRing::Lobby::RestoreLastSession();
+}
+
+void CGameManager::reapply_menu_state() {
+    apply_profiles();
+    apply_menu_state_from_bin();
 }
 
 void *CGameManager::game_restart(CGameManager *self, int type, const char *reason) {

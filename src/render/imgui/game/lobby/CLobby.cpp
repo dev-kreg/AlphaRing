@@ -438,6 +438,14 @@ static void DrawFooter(const char* hints) {
     DrawCenteredText(ScreenSize().y * 0.88f, 1.0f, kTextDim, hints);
 }
 
+// Saber remaster renderer only has 2-view layouts; 3+ screens need the
+// classic engine. Shown once a third player enters the flow.
+static void DrawClassicGraphicsWarning() {
+    if (g_player < 2) return;
+    DrawCenteredText(ScreenSize().y * 0.81f, 1.1f, IM_COL32(240, 200, 70, 255),
+                     "3+ PLAYERS: USE CLASSIC GRAPHICS (TAB IN-GAME) — ENHANCED ONLY SHOWS 2 SCREENS");
+}
+
 // Rows centered vertically starting at 35% height.
 static float RowY(int row) {
     return ScreenSize().y * 0.35f + row * ImGui::GetFontSize() * 2.0f;
@@ -547,6 +555,7 @@ static void StageBind() {
         snprintf(buf, sizeof(buf), "%d PLAYER%s READY", g_bound, g_bound > 1 ? "S" : "");
         DrawCenteredText(ScreenSize().y * 0.52f, 1.2f, kAccent, buf);
         DrawFooter("NEW CONTROLLER: ANY BUTTON = JOIN      PLAYER 1: START = BEGIN");
+    DrawClassicGraphicsWarning();
     } else {
         DrawFooter("START+BACK OR ESC = CANCEL");
     }
@@ -584,6 +593,7 @@ static void StageSource() {
     DrawRow(0, g_cursor == 0, hasRoster ? (g_cursor == 0 ? kTextMain : kTextDim) : IM_COL32(80, 85, 90, 255), "LOAD PROFILE");
     DrawRow(1, g_cursor == 1, g_cursor == 1 ? kTextMain : kTextDim, "NEW PLAYER");
     DrawFooter("DPAD = MOVE      A = SELECT      B = BACK");
+    DrawClassicGraphicsWarning();
 
     PadRead r = ReadPad(g_setup[g_player].pad);
     if (r.pressed & (XINPUT_GAMEPAD_DPAD_UP | XINPUT_GAMEPAD_DPAD_DOWN))
@@ -622,6 +632,7 @@ static void StageRosterPick() {
         DrawRow(row, i == g_cursor, taken ? IM_COL32(80, 85, 90, 255) : (i == g_cursor ? kTextMain : kTextDim), buf);
     }
     DrawFooter("DPAD = MOVE      A = SELECT      B = BACK");
+    DrawClassicGraphicsWarning();
 
     PadRead r = ReadPad(g_setup[g_player].pad);
     if ((r.pressed & XINPUT_GAMEPAD_DPAD_UP) && g_cursor > 0) g_cursor--;
@@ -796,6 +807,7 @@ static void StageConfirm() {
     DrawRow(5, g_cursor == 4, g_cursor == 4 ? kAccent : kTextDim, "READY");
 
     DrawFooter("DPAD = MOVE / CHANGE      A = OPEN COLOR GRID / READY      B = BACK");
+    DrawClassicGraphicsWarning();
 
     PadRead r = ReadPad(s.pad);
     if ((r.pressed & XINPUT_GAMEPAD_DPAD_UP) && g_cursor > 0) g_cursor--;

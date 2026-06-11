@@ -25,12 +25,23 @@ void CGameManager::set_vibration(CGameManager *self, DWORD dwUserIndex, XINPUT_V
     AlphaRing::Input::SetState(p_device->input_user, pVibration);
 }
 
+// research instrumentation: trace who asks for user ids while the menu is up
+static void trace_user_id(const char* tag, int index, bool ok, const wchar_t* name) {
+    static int n = 0;
+    ++n;
+    if (n > 300 && n % 200 != 0) return;
+    char nbuf[64] = {};
+    if (name) { int i = 0; for (; name[i] && i < 63; ++i) nbuf[i] = (char)name[i]; }
+    LOG_INFO("uid[{}] #{} idx={} ok={} name='{}'", tag, n, index, ok, nbuf);
+}
+
 bool CGameManager::get_xbox_user_id(CGameManager *self, __int64 *pId, wchar_t *pName, int size, int index) {
     auto p_setting = AlphaRing::Global::MCC::Splitscreen();
     auto p_profile = get_profile(index);
 
     if (!p_setting->b_override || !index) {
         bool ok = ppOriginal.get_xbox_user_id(self, pId, pName, size, index);
+        trace_user_id("orig", index, ok, pName);
         // the lobby can give player 1 a custom display name; XUID stays real
         if (ok && !index && pName && size > 1) {
             if (const wchar_t* n = AlphaRing::Lobby::P1NameOverride())
@@ -42,8 +53,12 @@ bool CGameManager::get_xbox_user_id(CGameManager *self, __int64 *pId, wchar_t *p
     static bool logged = false;
     if (!logged) { LOG_INFO("Splitscreen get_xbox_user_id: index={}, id={:x}", index, p_profile->id); logged = true; }
 
-    if (index >= p_setting->player_count)
+    if (index >= p_setting->player_count) {
+        trace_user_id("ovr-deny", index, false, nullptr);
         return false;
+    }
+
+    trace_user_id("ovr", index, true, p_profile->name);
 
     if (pId)
         *pId = p_profile->id;
@@ -112,6 +127,7 @@ bool CGameManager::get_key_state(CGameManager *self, DWORD index, input_data_t *
 }
 
 CUserProfile* CGameManager::get_player_profile(CGameManager *self, __int64 xid)  {
+    { static int n = 0; ++n; if (n <= 100 || n % 500 == 0) LOG_INFO("get_player_profile #{} xid={:x}", n, xid); }
     auto index = get_index(xid);
     auto p_setting = AlphaRing::Global::MCC::Splitscreen();
 

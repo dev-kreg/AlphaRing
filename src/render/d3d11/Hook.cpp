@@ -24,6 +24,12 @@ namespace AlphaRing::Render::D3d11 {
     }
 
     bool CreateHook() {
+        // The DrawIndexed detour taxes every draw call just to support the
+        // wireframe debug toggle. Only install it when explicitly requested.
+        char buf[8] = {};
+        if (GetEnvironmentVariableA("ALPHARING_WIREFRAME", buf, sizeof(buf)) == 0 || buf[0] == '0')
+            return true;
+
         return Hook::Detour({
             {GetFunction(73), DrawIndexed, (void **) &ppOriginal_DrawIndexed},
         });

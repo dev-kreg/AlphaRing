@@ -18,6 +18,9 @@ Having this menu open will disable inputs or pause the game.
 static auto msg_about = R"(
         Alpha Ring
                 Made by WinterSquire
+                Xbox UI & profiles by thejackbitt
+                Linux fixes by kadrim
+                Co-authored by devKreg
 )";
 
 static bool show_tutorial = false;

@@ -14,7 +14,9 @@ namespace AlphaRing::Global {
         bool wireframe;
         bool wireframe_model;
         bool wireframe_structure;
-        bool show_imgui = true;
+        // Start hidden: with the menu open the get_key_state hook swallows all
+        // game input, which makes MCC appear frozen during boot on Proton.
+        bool show_imgui = false;
         // on menu
         bool show_imgui_mouse = true;
         bool pause_game_on_menu_shown = false;
@@ -38,7 +40,8 @@ namespace AlphaRing::Global {
             int player_count = 1;
 
             // player 0
-            bool b_player0_use_km = true;
+            // Gamepad-only setup: player 1 on a controller, not keyboard/mouse.
+            bool b_player0_use_km = false;
             bool b_override_profile = false;
             bool b_use_player0_profile = true;
         };

@@ -61,6 +61,14 @@ namespace AlphaRing::Render::ImGui {
     }
 
     void Render() {
+        // Menu hidden: skip the whole ImGui frame, only poll the gamepad for
+        // the Back+Start toggle combo. Also avoids the NewFrame() without
+        // EndFrame() mismatch the old early-return caused every hidden frame.
+        if (!AlphaRing::Global::Global()->show_imgui) {
+            AlphaRing::Input::Update();
+            return;
+        }
+
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
         ::ImGui::NewFrame();
@@ -68,13 +76,16 @@ namespace AlphaRing::Render::ImGui {
         bool inGame = MCC::IsInGame();
         auto pGameGlobal = GameGlobal();
 
+        // Update() may toggle the menu off mid-frame; close the frame cleanly.
         AlphaRing::Input::Update();
 
-        if (!AlphaRing::Global::Global()->show_imgui || !AlphaRing::Global::Global()->show_imgui_mouse)
+        if (!AlphaRing::Global::Global()->show_imgui_mouse)
             ::ImGui::SetMouseCursor(ImGuiMouseCursor_None);
 
-        if (!AlphaRing::Global::Global()->show_imgui)
+        if (!AlphaRing::Global::Global()->show_imgui) {
+            ::ImGui::EndFrame();
             return;
+        }
 
         g_pMCCContext->render();
 

@@ -1,8 +1,8 @@
-name: Build & Release (master-chief)
+name: Build & Release
 
 on:
   push:
-    branches: [master-chief]
+    branches: [master]
     paths-ignore:
       - "**.md"
   workflow_dispatch:

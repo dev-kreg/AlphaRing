@@ -1,9 +1,7 @@
-# Alpha Ring — master-chief
+# Alpha Ring
 
 A modding tool for Halo: The Master Chief Collection (Steam, `1.3528.0.0`).
-Works on Windows, Linux, and Steam Deck (Proton). This branch combines
-thejackbitt's profile system, kadrim's Linux/Proton fixes, and a new
-controller-driven splitscreen lobby.
+Works on Windows, Linux, and Steam Deck (Proton).
 
 ## Splitscreen lobby
 
@@ -26,7 +24,7 @@ Profiles (name, colors, team) persist in `alpha_ring_roster.json` next to the DL
 
 ## Install
 
-1. Download `WTSAPI32.dll` from [Releases](../../releases) (`mc-*` tags for this branch) and drop it into
+1. Download `WTSAPI32.dll` from [Releases](../../releases/latest) and drop it into
    `Halo The Master Chief Collection/MCC/Binaries/Win64/`
 2. Launch MCC **with anti-cheat disabled**
 
@@ -38,8 +36,14 @@ WINEDLLOVERRIDES="WTSAPI32=n,b" %command%
 
 Optional: `ALPHARING_LOG=1` writes `AlphaRing.log` next to the DLL; `ALPHARING_WIREFRAME=1` enables the wireframe debug hook.
 
+Releases are built automatically by CI on every push.
+
 ## Credits
 
-Made by [WinterSquire](https://github.com/WinterSquire/AlphaRing); updated by xTrxplex and [wouter51](https://github.com/wouter51/AlphaRing); profile system, bind-by-press, and default mappings by [thejackbitt](https://github.com/thejackbitt/AlphaRing) (with kirklandsig and Priception); Linux/Proton fixes by [kadrim](https://github.com/kadrim/AlphaRing); lobby and this fork co-authored by devKreg.
+This fork was built with [Claude](https://claude.com/claude-code) and stands on great work by others:
 
-Releases are built automatically by CI on every push.
+- [WinterSquire/AlphaRing](https://github.com/WinterSquire/AlphaRing) — the original Alpha Ring, updated by xTrxplex
+- [wouter51/AlphaRing](https://github.com/wouter51/AlphaRing) — updates for MCC `1.3528.0.0`
+- [thejackbitt/AlphaRing](https://github.com/thejackbitt/AlphaRing) — profile system, bind-by-press controller binding, fixed default mappings (with kirklandsig and Priception)
+- [kadrim/AlphaRing](https://github.com/kadrim/AlphaRing) — Linux/Proton fixes (mutexes, logging)
+- [Assembly](https://github.com/XboxChaos/Assembly) for tag group research; [Blender](https://github.com/blender/blender) for bezier curve calculation

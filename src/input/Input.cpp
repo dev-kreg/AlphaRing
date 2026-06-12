@@ -19,6 +19,17 @@ static DWORD WINAPI XInputGetStateDetour(DWORD dwUserIndex, XINPUT_STATE* pState
     return result;
 }
 
+// Games often poll the undocumented XInputGetStateEx (ordinal 100) instead of
+// the named export — without this hook, controller input leaks through to the
+// game's menus while the lobby is open.
+static DWORD (WINAPI* g_pXInputGetStateEx)(DWORD dwUserIndex, XINPUT_STATE* pState);
+static DWORD WINAPI XInputGetStateExDetour(DWORD dwUserIndex, XINPUT_STATE* pState) {
+    DWORD result = g_pXInputGetStateEx(dwUserIndex, pState);
+    if (result == ERROR_SUCCESS && pState && AlphaRing::Lobby::IsOpen())
+        ZeroMemory(&pState->Gamepad, sizeof(pState->Gamepad));
+    return result;
+}
+
 namespace AlphaRing::Input {
     bool Init() {
         if ((hModule = GetModuleHandleA("XINPUT1_3.dll")) ||
@@ -40,6 +51,17 @@ namespace AlphaRing::Input {
             if (MH_CreateHook(xInputAddr, &XInputGetStateDetour,
                               reinterpret_cast<LPVOID*>(&g_pXInputGetState)) == MH_OK) {
                 MH_EnableHook(xInputAddr);
+            }
+
+            // ordinal 100 = XInputGetStateEx (not exported by name; absent in 9_1_0)
+            if (auto xInputExAddr = (LPVOID)GetProcAddress(hModule, (LPCSTR)100)) {
+                if (MH_CreateHook(xInputExAddr, &XInputGetStateExDetour,
+                                  reinterpret_cast<LPVOID*>(&g_pXInputGetStateEx)) == MH_OK) {
+                    MH_EnableHook(xInputExAddr);
+                    LOG_INFO("Hooked XInputGetStateEx (ordinal 100)");
+                }
+            } else {
+                LOG_INFO("XInputGetStateEx not present in this xinput module");
             }
         }
 

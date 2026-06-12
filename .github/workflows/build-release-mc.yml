@@ -2,7 +2,7 @@ name: Build & Release
 
 on:
   push:
-    branches: [master]
+    branches: [master, dev]
     paths-ignore:
       - "**.md"
   workflow_dispatch:
@@ -32,7 +32,16 @@ jobs:
         shell: bash
         run: echo "version=$(sed -n 's/^set(VERSION "\(.*\)")/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
 
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WTSAPI32-${{ github.ref_name }}-${{ github.run_number }}
+          path: |
+            build/Release/WTSAPI32.dll
+            build/Release/WTSAPI32.dll.sha256
+
       - name: Create release
+        if: github.ref == 'refs/heads/master'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: mc-v${{ steps.ver.outputs.version }}-r${{ github.run_number }}

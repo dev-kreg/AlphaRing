@@ -212,6 +212,17 @@ static void apply_menu_state_from_bin() {
         engine->load_setting();
 
     AlphaRing::Lobby::RestoreLastSession();
+
+    if (auto p0 = CGameManager::get_profile(0)) {
+        const unsigned char* b = (const unsigned char*)&p0->profile;
+        char line[3 * 32 + 16];
+        for (int off = 0; off < (int)sizeof(CUserProfile); off += 32) {
+            int n = 0;
+            for (int j = 0; j < 32 && off + j < (int)sizeof(CUserProfile); ++j)
+                n += snprintf(line + n, sizeof(line) - n, "%02x ", b[off + j]);
+            LOG_INFO("pf0 {:03x}: {}", off, line);
+        }
+    }
 }
 
 void CGameManager::reapply_menu_state() {

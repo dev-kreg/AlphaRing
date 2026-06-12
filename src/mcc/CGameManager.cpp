@@ -190,6 +190,7 @@ static void apply_menu_state_from_bin() {
 
     auto* gg = GameGlobal();
     int game = gg ? static_cast<int>(gg->current_game) : static_cast<int>(CGameGlobal::Halo3);
+    LOG_INFO("apply colors: game={} players={}", game, ms.playerCount);
     for (int i = 0; i < 4; ++i) {
         auto profile = CGameManager::get_profile(i);
         if (profile) {
@@ -202,6 +203,9 @@ static void apply_menu_state_from_bin() {
             profile->profile.PlayerModelPrimaryColor        = primary;
             profile->profile.PlayerModelSecondaryColor      = secondary;
             profile->profile.PlayerModelTertiaryColor       = tertiary;
+            LOG_INFO("  p{} rows[{},{},{}] -> idx[{},{},{}]", i,
+                     ms.playerColors[i].colors[0], ms.playerColors[i].colors[1], ms.playerColors[i].colors[2],
+                     primary, secondary, tertiary);
         }
     }
     if (engine)

@@ -215,16 +215,35 @@ void CGameManager::reapply_menu_state() {
     apply_menu_state_from_bin();
 }
 
+// game_setup/game_restart fire continuously during Halo CE gameplay, and the
+// reapply path hits the disk (menu-state bin + roster json) every call — the
+// source of in-mission stutter. One reapply per 2 seconds is plenty: real
+// mission loads are far further apart.
+static bool reapply_debounced() {
+    static LARGE_INTEGER last = {};
+    LARGE_INTEGER now, freq;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&now);
+    if (last.QuadPart != 0 && (double)(now.QuadPart - last.QuadPart) / freq.QuadPart < 2.0)
+        return false;
+    last = now;
+    return true;
+}
+
 void *CGameManager::game_restart(CGameManager *self, int type, const char *reason) {
     auto result = ppOriginal.game_restart(self, type, reason);
-    apply_profiles();
-    apply_menu_state_from_bin();
+    if (reapply_debounced()) {
+        apply_profiles();
+        apply_menu_state_from_bin();
+    }
     return result;
 }
 
 char __fastcall CGameManager::game_setup(CGameManager* self, void* a2) {
     char result = ppOriginal.game_setup(self, a2);
-    apply_profiles();
-    apply_menu_state_from_bin();
+    if (reapply_debounced()) {
+        apply_profiles();
+        apply_menu_state_from_bin();
+    }
     return result;
 }

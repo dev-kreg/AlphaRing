@@ -64,22 +64,9 @@ ProfileContainer_t::ProfileContainer_t() {
 CGameManager* pGameManager;
 CGameManager::FunctionTable CGameManager::ppOriginal;
 
-static char (__fastcall* pOriginal_un_set_info)(CGameManager*, wchar_t*, __int64);
-static char __fastcall un_set_info_detour(CGameManager* self, wchar_t* a2, __int64 a3) {
-    static int n = 0;
-    ++n;
-    if (n <= 200 || n % 100 == 0) {
-        char nbuf[96] = {};
-        if (a2) { int i = 0; for (; a2[i] && i < 95; ++i) nbuf[i] = (char)a2[i]; }
-        LOG_INFO("un_set_info #{} str='{}' a3={:x}", n, nbuf, (unsigned long long)a3);
-    }
-    return pOriginal_un_set_info(self, a2, a3);
-}
-
 bool CGameManager::Initialize(CGameManager* mng) {
     pGameManager = mng;
     return AlphaRing::Hook::Detour({
-        {pGameManager->table->un_set_info, un_set_info_detour, (void**)&pOriginal_un_set_info},
         {pGameManager->table->get_player_profile, get_player_profile, (void**)&ppOriginal.get_player_profile},
         {pGameManager->table->get_key_state, get_key_state, (void**)&ppOriginal.get_key_state},
         {pGameManager->table->get_xbox_user_id, get_xbox_user_id, (void**)&ppOriginal.get_xbox_user_id},

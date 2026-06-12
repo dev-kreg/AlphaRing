@@ -79,7 +79,7 @@ static int GameToColumn(int game) {
         case 5: return kColODST;
         case 1: return kColHalo2;
         case 0: return kColHalo1;
-        case 4: return kColHalo3; // GroundHog → H3 fallback
+        case 4: return kColHalo2A; // GroundHog = H2A multiplayer
         default: return kColHalo3;
     }
 }
@@ -94,12 +94,17 @@ int GetColorIndex(int colorIndex, int game) {
     const char* s = GetColorString(colorIndex, game);
     if (!s)
         return colorIndex;
-    // Parse the first digit sequence embedded in the string (e.g. 12 from "H3_COLOR12_SAGE").
-    // Reach and ODST strings carry no number, so the loop finds nothing and falls back.
-    for (const char* p = s; *p; ++p) {
-        if (isdigit((unsigned char)*p))
-            return atoi(p);
+    // Parse the LAST digit sequence in the string (e.g. 12 from "H3_COLOR12_SAGE").
+    // The first digit would hit the game prefix ("H1", "H2A", ...), which made
+    // every color collapse to that one index — all-white players in Halo CE.
+    // Reach and ODST strings carry no number after the prefix and fall back.
+    const char* last = nullptr;
+    for (const char* p = s + 1; *p; ++p) {
+        if (isdigit((unsigned char)*p) && !isdigit((unsigned char)p[-1]))
+            last = p;
     }
+    if (last)
+        return atoi(last);
     return colorIndex;
 }
 

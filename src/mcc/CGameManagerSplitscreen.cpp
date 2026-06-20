@@ -111,27 +111,26 @@ bool CGameManager::get_key_state(CGameManager *self, DWORD index, input_data_t *
     return result;
 }
 
-CUserProfile* CGameManager::get_player_profile(CGameManager *self, __int64 xid)  {
-    auto index = get_index(xid);
-    auto p_setting = AlphaRing::Global::MCC::Splitscreen();
+// Push player 1's control settings into players 2-4's cached profiles so that
+// in-game pause-menu changes (look sensitivity, invert, vibration, FOV,
+// button/stick presets, etc.) apply to everyone — only P1 can open the pause
+// menu. Per-player armor colors are preserved. Throttled to once every 3s:
+// settings changes are rare, so a few-second delay applying them is fine and the
+// per-frame cost on get_player_profile drops to a timestamp compare.
+static void sync_controls_from_p1(CGameManager* self) {
+    static LARGE_INTEGER last = {};
+    LARGE_INTEGER now, freq;
+    QueryPerformanceFrequency(&freq);
+    QueryPerformanceCounter(&now);
+    if (last.QuadPart != 0 && (double)(now.QuadPart - last.QuadPart) / freq.QuadPart < 3.0)
+        return;
+    last = now;
 
-    if (!p_setting->b_override)
-        return ppOriginal.get_player_profile(self, xid);
-
-    if (!p_setting->b_override_profile && ((!index) || (index && p_setting->b_use_player0_profile)))
-        return ppOriginal.get_player_profile(self, get_xuid(0));
-
-    if (p_setting->b_use_player0_profile)
-        return &get_profile(0)->profile;
-
-    auto* dst = &get_profile(index)->profile;
-
-    // Live-sync control settings from player 1's real profile so that changes
-    // made in the in-game pause menu (look sensitivity, invert, vibration, FOV,
-    // button/stick presets, etc.) apply to every splitscreen player — only P1
-    // can open the pause menu, so without this the others stay on stale values.
-    // Per-player armor colors are preserved (they are assigned independently).
-    if (auto* base = ppOriginal.get_player_profile(self, get_xuid(0))) {
+    auto* base = CGameManager::ppOriginal.get_player_profile(self, CGameManager::get_xuid(0));
+    if (!base)
+        return;
+    for (int i = 1; i < 4; ++i) {
+        auto* dst = &CGameManager::get_profile(i)->profile;
         int pci = dst->PlayerModelPrimaryColorIndex;
         int sci = dst->PlayerModelSecondaryColorIndex;
         int tci = dst->PlayerModelTertiaryColorIndex;
@@ -146,7 +145,23 @@ CUserProfile* CGameManager::get_player_profile(CGameManager *self, __int64 xid) 
         dst->PlayerModelSecondaryColor      = sc;
         dst->PlayerModelTertiaryColor       = tc;
     }
-    return dst;
+}
+
+CUserProfile* CGameManager::get_player_profile(CGameManager *self, __int64 xid)  {
+    auto index = get_index(xid);
+    auto p_setting = AlphaRing::Global::MCC::Splitscreen();
+
+    if (!p_setting->b_override)
+        return ppOriginal.get_player_profile(self, xid);
+
+    if (!p_setting->b_override_profile && ((!index) || (index && p_setting->b_use_player0_profile)))
+        return ppOriginal.get_player_profile(self, get_xuid(0));
+
+    if (p_setting->b_use_player0_profile)
+        return &get_profile(0)->profile;
+
+    sync_controls_from_p1(self);
+    return &get_profile(index)->profile;
 }
 
 CGamepadMapping* CGameManager::retrive_gamepad_mapping(CGameManager *self, __int64 xid) {

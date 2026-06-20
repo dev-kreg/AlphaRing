@@ -124,7 +124,29 @@ CUserProfile* CGameManager::get_player_profile(CGameManager *self, __int64 xid) 
     if (p_setting->b_use_player0_profile)
         return &get_profile(0)->profile;
 
-    return &get_profile(get_index(xid))->profile;
+    auto* dst = &get_profile(index)->profile;
+
+    // Live-sync control settings from player 1's real profile so that changes
+    // made in the in-game pause menu (look sensitivity, invert, vibration, FOV,
+    // button/stick presets, etc.) apply to every splitscreen player — only P1
+    // can open the pause menu, so without this the others stay on stale values.
+    // Per-player armor colors are preserved (they are assigned independently).
+    if (auto* base = ppOriginal.get_player_profile(self, get_xuid(0))) {
+        int pci = dst->PlayerModelPrimaryColorIndex;
+        int sci = dst->PlayerModelSecondaryColorIndex;
+        int tci = dst->PlayerModelTertiaryColorIndex;
+        int pc  = dst->PlayerModelPrimaryColor;
+        int sc  = dst->PlayerModelSecondaryColor;
+        int tc  = dst->PlayerModelTertiaryColor;
+        *dst = *base;
+        dst->PlayerModelPrimaryColorIndex   = pci;
+        dst->PlayerModelSecondaryColorIndex = sci;
+        dst->PlayerModelTertiaryColorIndex  = tci;
+        dst->PlayerModelPrimaryColor        = pc;
+        dst->PlayerModelSecondaryColor      = sc;
+        dst->PlayerModelTertiaryColor       = tc;
+    }
+    return dst;
 }
 
 CGamepadMapping* CGameManager::retrive_gamepad_mapping(CGameManager *self, __int64 xid) {

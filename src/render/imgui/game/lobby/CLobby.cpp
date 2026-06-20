@@ -27,32 +27,6 @@ namespace AlphaRing::Lobby {
 
 // ---------------------------------------------------------------- data
 
-static const char* kColorNames[CXboxColorMapping::kColorCount] = {
-    "Steel", "Silver", "White", "Brown", "Tan", "Khaki", "Sage", "Olive",
-    "Drab", "Forest", "Green", "Sea Foam", "Teal", "Aqua", "Cyan", "Blue",
-    "Cobalt", "Ice", "Violet", "Orchid", "Lavender", "Maroon", "Brick",
-    "Rose", "Rust", "Coral", "Peach", "Gold", "Yellow", "Pale",
-};
-
-// Approximate swatches for the picker, indexed like kColorNames.
-static const ImU32 kColorSwatch[CXboxColorMapping::kColorCount] = {
-    IM_COL32( 95, 100, 105, 255), IM_COL32(170, 175, 180, 255),
-    IM_COL32(235, 235, 235, 255), IM_COL32(105,  70,  45, 255),
-    IM_COL32(180, 160, 120, 255), IM_COL32(150, 140, 100, 255),
-    IM_COL32(130, 150, 115, 255), IM_COL32(100, 110,  60, 255),
-    IM_COL32(115, 105,  75, 255), IM_COL32( 35,  80,  45, 255),
-    IM_COL32( 50, 140,  60, 255), IM_COL32(140, 200, 170, 255),
-    IM_COL32( 30, 125, 125, 255), IM_COL32( 80, 185, 195, 255),
-    IM_COL32( 60, 200, 230, 255), IM_COL32( 40,  80, 200, 255),
-    IM_COL32( 35,  55, 145, 255), IM_COL32(165, 200, 230, 255),
-    IM_COL32(120,  60, 180, 255), IM_COL32(190, 110, 200, 255),
-    IM_COL32(190, 165, 220, 255), IM_COL32(110,  30,  45, 255),
-    IM_COL32(160,  65,  50, 255), IM_COL32(225, 120, 150, 255),
-    IM_COL32(175,  85,  35, 255), IM_COL32(245, 120,  95, 255),
-    IM_COL32(245, 175, 130, 255), IM_COL32(210, 165,  45, 255),
-    IM_COL32(235, 220,  60, 255), IM_COL32(230, 225, 180, 255),
-};
-
 static const char* kTeamNames[8] = {
     "Red", "Blue", "Green", "Orange", "Purple", "Gold", "Brown", "Pink",
 };
@@ -113,8 +87,6 @@ static double g_countdownEnd = 0.0;
 static int g_cursor = 0;        // generic row cursor for current stage
 static int g_oskX = 0, g_oskY = 0;
 static bool g_oskCaps = true;
-static int g_gridFor = -1;      // color slot being picked in the grid, -1 = closed
-static int g_gridCursor = 0;
 static std::string g_nameBuf;
 static wchar_t g_p1Name[64] = {};
 static bool g_p1HasName = false;
@@ -282,8 +254,11 @@ static void ApplySession(int count) {
         const PlayerSetup& s = g_setup[i < count ? i : 0];
         ms.controllerIndex[i] = i < count ? s.pad : i;
         ms.teamIndex[i] = i < count ? s.team : 0;
+        // Color selection was removed from the lobby — assign random armor
+        // colors per player (best-effort; only takes effect on engines that
+        // honor profile colors).
         for (int c = 0; c < 3; ++c)
-            ms.playerColors[i].colors[c] = s.colors[c];
+            ms.playerColors[i].colors[c] = rand() % CXboxColorMapping::kColorCount;
     }
 
     for (int i = 0; i < count; ++i) {
@@ -293,9 +268,9 @@ static void ApplySession(int count) {
         profile->controller_index = g_setup[i].pad;
         SetProfileName(i, g_setup[i].name);
 
-        int primary = CXboxColorMapping::GetColorIndex(g_setup[i].colors[0], game);
-        int secondary = CXboxColorMapping::GetColorIndex(g_setup[i].colors[1], game);
-        int tertiary = CXboxColorMapping::GetColorIndex(g_setup[i].colors[2], game);
+        int primary = CXboxColorMapping::GetColorIndex(ms.playerColors[i].colors[0], game);
+        int secondary = CXboxColorMapping::GetColorIndex(ms.playerColors[i].colors[1], game);
+        int tertiary = CXboxColorMapping::GetColorIndex(ms.playerColors[i].colors[2], game);
         profile->profile.PlayerModelPrimaryColorIndex = primary;
         profile->profile.PlayerModelSecondaryColorIndex = secondary;
         profile->profile.PlayerModelTertiaryColorIndex = tertiary;
@@ -397,7 +372,7 @@ static void EnterNameStage() {
     g_stage = Stage::Name;
 }
 
-static void ResetConfirmUi() { g_cursor = 0; g_gridFor = -1; }
+static void ResetConfirmUi() { g_cursor = 0; }
 
 static void ConfirmPlayer() {
     if (!g_editSourceName.empty() && g_editSourceName != g_setup[g_player].name) {
@@ -787,101 +762,31 @@ static void StageName() {
     }
 }
 
-static constexpr int kGridCols = 6;
-
-static void StageColorGrid(PlayerSetup& sPlayer) {
-    auto* dl = ImGui::GetForegroundDrawList();
-    ImFont* font = ImGui::GetFont();
-    ImVec2 sz = ScreenSize();
-
-    const int nc = CXboxColorMapping::kColorCount;
-    const int rows = (nc + kGridCols - 1) / kGridCols;
-
-    float cell = ImGui::GetFontSize() * 3.2f;
-    float gridW = kGridCols * cell;
-    float gridH = rows * cell;
-    float x0 = (sz.x - gridW) * 0.5f;
-    float y0 = sz.y * 0.36f;
-
-    static const char* slotNames[3] = {"PRIMARY", "SECONDARY", "DETAIL"};
-    char title[64];
-    snprintf(title, sizeof(title), "%s COLOR", slotNames[g_gridFor]);
-    DrawCenteredText(sz.y * 0.26f, 1.6f, kTextMain, title);
-    DrawCenteredText(y0 + gridH + ImGui::GetFontSize() * 1.2f, 1.4f, kAccent, kColorNames[g_gridCursor]);
-
-    for (int i = 0; i < nc; ++i) {
-        int cx = i % kGridCols, cy = i / kGridCols;
-        float x = x0 + cx * cell, y = y0 + cy * cell;
-        float pad = cell * 0.12f;
-        dl->AddRectFilled({x + pad, y + pad}, {x + cell - pad, y + cell - pad}, kColorSwatch[i], 4.0f);
-        dl->AddRect({x + pad, y + pad}, {x + cell - pad, y + cell - pad}, IM_COL32(0, 0, 0, 200), 4.0f);
-        if (i == g_gridCursor)
-            dl->AddRect({x + 2, y + 2}, {x + cell - 2, y + cell - 2}, kAccent, 5.0f, 0, 3.0f);
-        if (i == sPlayer.colors[g_gridFor])
-            dl->AddCircleFilled({x + cell - pad - 7, y + pad + 7}, 4.0f, kAccent);
-    }
-
-    DrawFooter("DPAD = MOVE      A = SELECT      B = CANCEL");
-
-    PadRead r = ReadPad(sPlayer.pad);
-    int cx = g_gridCursor % kGridCols, cy = g_gridCursor / kGridCols;
-    if (r.pressed & XINPUT_GAMEPAD_DPAD_LEFT)  cx = (cx + kGridCols - 1) % kGridCols;
-    if (r.pressed & XINPUT_GAMEPAD_DPAD_RIGHT) cx = (cx + 1) % kGridCols;
-    if (r.pressed & XINPUT_GAMEPAD_DPAD_UP)    cy = (cy + rows - 1) % rows;
-    if (r.pressed & XINPUT_GAMEPAD_DPAD_DOWN)  cy = (cy + 1) % rows;
-    g_gridCursor = cy * kGridCols + cx;
-    if (g_gridCursor >= nc) g_gridCursor = nc - 1;
-
-    if (r.pressed & XINPUT_GAMEPAD_A) {
-        sPlayer.colors[g_gridFor] = g_gridCursor;
-        g_gridFor = -1;
-    }
-    if (r.pressed & XINPUT_GAMEPAD_B)
-        g_gridFor = -1;
-}
-
 static void StageConfirm() {
     PlayerSetup& s = g_setup[g_player];
     DrawHeader(s.name.c_str());
 
-    if (g_gridFor >= 0) {
-        StageColorGrid(s);
-        return;
-    }
+    // Color selection removed — armor colors are randomized at session start.
+    // Only team and the ready toggle remain.
+    DrawSwatchRow(0, g_cursor == 0, "TEAM", kTeamSwatch[s.team], kTeamNames[s.team]);
+    DrawRow(2, g_cursor == 1, g_cursor == 1 ? kAccent : kTextDim, "READY");
 
-    DrawSwatchRow(0, g_cursor == 0, "PRIMARY", kColorSwatch[s.colors[0]], kColorNames[s.colors[0]]);
-    DrawSwatchRow(1, g_cursor == 1, "SECONDARY", kColorSwatch[s.colors[1]], kColorNames[s.colors[1]]);
-    DrawSwatchRow(2, g_cursor == 2, "DETAIL", kColorSwatch[s.colors[2]], kColorNames[s.colors[2]]);
-    DrawSwatchRow(3, g_cursor == 3, "TEAM", kTeamSwatch[s.team], kTeamNames[s.team]);
-    DrawRow(5, g_cursor == 4, g_cursor == 4 ? kAccent : kTextDim, "READY");
-
-    DrawFooter("DPAD = MOVE / CHANGE      A = OPEN COLOR GRID / READY      B = BACK");
+    DrawFooter("DPAD = MOVE / CHANGE TEAM      A = READY      B = BACK");
     DrawClassicGraphicsWarning();
 
     PadRead r = ReadPad(s.pad);
     if ((r.pressed & XINPUT_GAMEPAD_DPAD_UP) && g_cursor > 0) g_cursor--;
-    if ((r.pressed & XINPUT_GAMEPAD_DPAD_DOWN) && g_cursor < 4) g_cursor++;
+    if ((r.pressed & XINPUT_GAMEPAD_DPAD_DOWN) && g_cursor < 1) g_cursor++;
 
     int dir = 0;
     if (r.pressed & XINPUT_GAMEPAD_DPAD_LEFT) dir = -1;
     if (r.pressed & XINPUT_GAMEPAD_DPAD_RIGHT) dir = 1;
-    if (dir != 0) {
-        const int nc = CXboxColorMapping::kColorCount;
-        if (g_cursor < 3)
-            s.colors[g_cursor] = (s.colors[g_cursor] + dir + nc) % nc;
-        else if (g_cursor == 3)
-            s.team = (s.team + dir + 8) % 8;
-    }
+    if (dir != 0 && g_cursor == 0)
+        s.team = (s.team + dir + 8) % 8;
 
-    if (r.pressed & XINPUT_GAMEPAD_A) {
-        if (g_cursor == 4) {
-            ConfirmPlayer();
-            return;
-        }
-        if (g_cursor < 3) {
-            g_gridFor = g_cursor;
-            g_gridCursor = s.colors[g_cursor];
-        }
+    if ((r.pressed & XINPUT_GAMEPAD_A) && g_cursor == 1) {
+        ConfirmPlayer();
+        return;
     }
     if (r.pressed & XINPUT_GAMEPAD_START) {
         ConfirmPlayer();
